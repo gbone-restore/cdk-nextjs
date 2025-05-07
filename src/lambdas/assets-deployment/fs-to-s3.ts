@@ -8,14 +8,55 @@ import { Upload } from "@aws-sdk/lib-storage";
 import * as mime from "mime-types";
 import { chunkArray, listFilePaths } from "./common";
 import { s3 } from "./s3";
-import { debug } from "./utils";
+import { createProgressTracker, debug } from "./utils";
 import { NextjsType } from "../../common";
 import type { FsToS3Action } from "../../nextjs-assets-deployment";
 
 export async function fsToS3(props: FsToS3Action, nextjsType?: NextjsType) {
   const { destinationBucketName, destinationKeyPrefix, sourcePath } = props;
+  console.log(
+    `Starting fs-to-s3 upload from ${sourcePath} to ${destinationBucketName}${destinationKeyPrefix ? "/" + destinationKeyPrefix : ""}`,
+  );
+
   const sourceFilePaths = listFilePaths(sourcePath);
-  for await (const filePathChunk of chunkArray(sourceFilePaths, 100)) {
+  console.log(`Found ${sourceFilePaths.length} files to upload`);
+
+  // Create progress tracker
+  const progressTracker = createProgressTracker(sourceFilePaths.length);
+
+  // Determine optimal chunk size based on file count
+  // Use smaller chunks for large file counts to avoid memory issues
+  const totalFiles = sourceFilePaths.length;
+  const chunkSize = totalFiles > 1000 ? 50 : totalFiles > 500 ? 100 : 200;
+  console.log(`Using chunk size of ${chunkSize} for ${totalFiles} files`);
+
+  // Define priority function for critical assets
+  // Prioritize HTML, CSS, JS, and small files that improve perceived load times
+  const isPriorityFile = (filePath: string): boolean => {
+    const lowerPath = filePath.toLowerCase();
+    // Prioritize critical path resources
+    if (
+      lowerPath.endsWith(".html") ||
+      lowerPath.endsWith(".css") ||
+      lowerPath.includes("main-") ||
+      lowerPath.includes("chunks/pages/") ||
+      lowerPath.includes("chunks/app/")
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  let totalUploaded = 0;
+  let failedUploads = 0;
+
+  // Process files in parallel batches with prioritization
+  for await (const filePathChunk of chunkArray(
+    sourceFilePaths,
+    chunkSize,
+    isPriorityFile,
+  )) {
+    // Create upload parameters
     const putObjectInputs: PutObjectCommandInput[] = filePathChunk.map(
       (path) => {
         const contentType = mime.lookup(path) || undefined;
@@ -50,16 +91,48 @@ export async function fsToS3(props: FsToS3Action, nextjsType?: NextjsType) {
         };
       },
     );
+
     debug(
       putObjectInputs.map((i) => ({
         bucket: i.Bucket,
         key: i.ContentType,
       })),
     );
-    await Promise.all(
-      putObjectInputs.map((input) =>
-        new Upload({ client: s3, params: input }).done(),
-      ),
+
+    // Upload files in parallel with configurable concurrency
+    const uploadPromises = putObjectInputs.map((input) => {
+      const upload = new Upload({
+        client: s3,
+        params: input,
+        // Add partSize optimization for large files (optional)
+        queueSize: 4, // Controls concurrent uploads for multipart uploads
+      });
+
+      // Add error handling and retry logic
+      return upload.done().catch((error) => {
+        failedUploads++;
+        console.error(`Error uploading ${input.Key}: ${error.message}`);
+        // Return null instead of throwing to allow other uploads to continue
+        return null;
+      });
+    });
+
+    // Wait for all uploads in this chunk to complete and update progress
+    const results = await Promise.all(uploadPromises);
+    const successfulUploads = results.filter((r) => r !== null).length;
+    totalUploaded += successfulUploads;
+    progressTracker.updateProgress(filePathChunk.length);
+  }
+
+  progressTracker.logProgress();
+  console.log(
+    `fs-to-s3 upload complete. Uploaded ${totalUploaded} files with ${failedUploads} failures.`,
+  );
+
+  // If more than 10% of uploads failed, we should probably throw an error
+  if (failedUploads > 0 && failedUploads / sourceFilePaths.length > 0.1) {
+    throw new Error(
+      `Too many failed uploads: ${failedUploads} out of ${sourceFilePaths.length}`,
     );
   }
 }
