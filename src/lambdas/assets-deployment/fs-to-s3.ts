@@ -31,7 +31,8 @@ export async function fsToS3(props: FsToS3Action, nextjsType?: NextjsType) {
   console.log(`Using chunk size of ${chunkSize} for ${totalFiles} files`);
 
   // Define priority function for critical assets
-  // Prioritize HTML, CSS, JS, and small files that improve perceived load times
+  // Prioritize essential files to minimize deployment failure impact
+  // This ensures core application files are deployed first in case of interruption
   const isPriorityFile = (filePath: string): boolean => {
     const lowerPath = filePath.toLowerCase();
     // Prioritize critical path resources
