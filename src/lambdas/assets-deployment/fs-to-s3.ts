@@ -130,11 +130,17 @@ export async function fsToS3(props: FsToS3Action, nextjsType?: NextjsType) {
     `fs-to-s3 upload complete. Uploaded ${totalUploaded} files with ${failedUploads} failures.`,
   );
 
-  // If more than 10% of uploads failed, we should probably throw an error
-  if (failedUploads > 0 && failedUploads / sourceFilePaths.length > 0.1) {
-    throw new Error(
-      `Too many failed uploads: ${failedUploads} out of ${sourceFilePaths.length}`,
-    );
+  // Verify all files were uploaded successfully - strict equality check
+  if (totalUploaded !== sourceFilePaths.length) {
+    const missingCount = sourceFilePaths.length - totalUploaded;
+    const errorMsg = `ERROR: File count mismatch! Source: ${sourceFilePaths.length}, Successfully uploaded: ${totalUploaded}, Missing: ${missingCount}`;
+    console.error(errorMsg);
+    console.error('Website deployment requires 100% of files to be uploaded successfully.');
+
+    // Always throw an error for any missing files - website deployment requires completeness
+    throw new Error(errorMsg);
+  } else {
+    console.log(`Successfully verified all ${sourceFilePaths.length} files were uploaded.`);
   }
 }
 
