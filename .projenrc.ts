@@ -67,6 +67,7 @@ const project = new awscdk.AwsCdkConstructLibrary({
     "ash_output",
     "examples/.dockerignore",
     "examples/builder.Dockerfile",
+    ".pnpm-store",
   ],
   projenrcTs: true,
   eslintOptions: {
