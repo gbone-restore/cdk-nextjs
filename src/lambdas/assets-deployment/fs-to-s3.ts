@@ -135,12 +135,16 @@ export async function fsToS3(props: FsToS3Action, nextjsType?: NextjsType) {
     const missingCount = sourceFilePaths.length - totalUploaded;
     const errorMsg = `ERROR: File count mismatch! Source: ${sourceFilePaths.length}, Successfully uploaded: ${totalUploaded}, Missing: ${missingCount}`;
     console.error(errorMsg);
-    console.error('Website deployment requires 100% of files to be uploaded successfully.');
+    console.error(
+      "Website deployment requires 100% of files to be uploaded successfully.",
+    );
 
     // Always throw an error for any missing files - website deployment requires completeness
     throw new Error(errorMsg);
   } else {
-    console.log(`Successfully verified all ${sourceFilePaths.length} files were uploaded.`);
+    console.log(
+      `Successfully verified all ${sourceFilePaths.length} files were uploaded.`,
+    );
   }
 }
 

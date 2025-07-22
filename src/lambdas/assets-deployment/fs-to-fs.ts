@@ -1,7 +1,7 @@
 import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { FsToFsAction } from "../../nextjs-assets-deployment";
 import { listFilePaths } from "./common";
+import type { FsToFsAction } from "../../nextjs-assets-deployment";
 
 export function fsToFs(props: FsToFsAction) {
   const { destinationPath, sourcePath } = props;
@@ -22,7 +22,9 @@ export function fsToFs(props: FsToFsAction) {
 
     // Early return if no files to copy (avoid empty directory errors)
     if (sourceFileCount === 0) {
-      console.log(`No files found in source path ${sourcePath}, skipping copy operation`);
+      console.log(
+        `No files found in source path ${sourcePath}, skipping copy operation`,
+      );
       return;
     }
 
@@ -45,7 +47,9 @@ export function fsToFs(props: FsToFsAction) {
       const missingCount = sourceFileCount - destinationFileCount;
       const errorMsg = `ERROR: File count mismatch! Source: ${sourceFileCount}, Destination: ${destinationFileCount}, Missing: ${missingCount}`;
       console.error(errorMsg);
-      console.error('Website deployment requires 100% of files to be copied successfully.');
+      console.error(
+        "Website deployment requires 100% of files to be copied successfully.",
+      );
       throw new Error(errorMsg);
     } else {
       console.log(
